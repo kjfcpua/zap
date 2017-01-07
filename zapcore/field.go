@@ -25,34 +25,51 @@ import (
 	"math"
 )
 
-type fieldType uint8
+// A FieldType indicates which member of the Field union struct should be used
+// and how it should be serialized.
+type FieldType uint8
 
 const (
-	unknownType fieldType = iota
-	boolType
-	floatType
-	intType
-	int64Type
-	uintType
-	uint64Type
-	uintptrType
-	stringType
-	marshalerType
-	reflectType
-	stringerType
-	errorType
-	skipType
+	// UnknownType is the default field type. Attempting to add it to an encoder will panic.
+	UnknownType FieldType = iota
+	// BoolType indicates that the field carries a bool.
+	BoolType
+	// FloatType indicates that the field carries a float64.
+	FloatType
+	// IntType indicates that the field carries an int.
+	IntType
+	// Int64Type indicates that the field carries an int64.
+	Int64Type
+	// UintType indicates that the field carries a uint.
+	UintType
+	// Uint64Type indicates that the field carries a uint64.
+	Uint64Type
+	// UintptrType indicates that the field carries a uintptr.
+	UintptrType
+	// StringType indicates that the field carries a string.
+	StringType
+	// ObjectMarshalerType indicates that the field carries a LogObjectMarshaler.
+	ObjectMarshalerType
+	// ReflectType indicates that the field carries an interface{}, which should
+	// be serialized using reflection.
+	ReflectType
+	// StringerType indicates that the field carries a fmt.Stringer.
+	StringerType
+	// ErrorType indicates that the field carries an error.
+	ErrorType
+	// SkipType indicates that the field is a no-op.
+	SkipType
 )
 
 // A Field is a marshaling operation used to add a key-value pair to a logger's
 // context. Most fields are lazily marshaled, so it's inexpensive to add fields
 // to disabled debug-level log statements.
 type Field struct {
-	key       string
-	fieldType fieldType
-	ival      int64
-	str       string
-	obj       interface{}
+	Key       string
+	Type      FieldType
+	Integer   int64
+	String    string
+	Interface interface{}
 }
 
 // AddTo exports a field through the ObjectEncoder interface. It's primarily
@@ -60,39 +77,39 @@ type Field struct {
 func (f Field) AddTo(enc ObjectEncoder) {
 	var err error
 
-	switch f.fieldType {
-	case boolType:
-		enc.AddBool(f.key, f.ival == 1)
-	case floatType:
-		enc.AddFloat64(f.key, math.Float64frombits(uint64(f.ival)))
-	case intType:
-		enc.AddInt(f.key, int(f.ival))
-	case int64Type:
-		enc.AddInt64(f.key, f.ival)
-	case uintType:
-		enc.AddUint(f.key, uint(f.ival))
-	case uint64Type:
-		enc.AddUint64(f.key, uint64(f.ival))
-	case uintptrType:
-		enc.AddUintptr(f.key, uintptr(f.ival))
-	case stringType:
-		enc.AddString(f.key, f.str)
-	case stringerType:
-		enc.AddString(f.key, f.obj.(fmt.Stringer).String())
-	case marshalerType:
-		err = enc.AddObject(f.key, f.obj.(LogObjectMarshaler))
-	case reflectType:
-		err = enc.AddReflected(f.key, f.obj)
-	case errorType:
-		enc.AddString(f.key, f.obj.(error).Error())
-	case skipType:
+	switch f.Type {
+	case BoolType:
+		enc.AddBool(f.Key, f.Integer == 1)
+	case FloatType:
+		enc.AddFloat64(f.Key, math.Float64frombits(uint64(f.Integer)))
+	case IntType:
+		enc.AddInt(f.Key, int(f.Integer))
+	case Int64Type:
+		enc.AddInt64(f.Key, f.Integer)
+	case UintType:
+		enc.AddUint(f.Key, uint(f.Integer))
+	case Uint64Type:
+		enc.AddUint64(f.Key, uint64(f.Integer))
+	case UintptrType:
+		enc.AddUintptr(f.Key, uintptr(f.Integer))
+	case StringType:
+		enc.AddString(f.Key, f.String)
+	case StringerType:
+		enc.AddString(f.Key, f.Interface.(fmt.Stringer).String())
+	case ObjectMarshalerType:
+		err = enc.AddObject(f.Key, f.Interface.(LogObjectMarshaler))
+	case ReflectType:
+		err = enc.AddReflected(f.Key, f.Interface)
+	case ErrorType:
+		enc.AddString(f.Key, f.Interface.(error).Error())
+	case SkipType:
 		break
 	default:
 		panic(fmt.Sprintf("unknown field type: %v", f))
 	}
 
 	if err != nil {
-		enc.AddString(fmt.Sprintf("%sError", f.key), err.Error())
+		enc.AddString(fmt.Sprintf("%sError", f.Key), err.Error())
 	}
 }
 

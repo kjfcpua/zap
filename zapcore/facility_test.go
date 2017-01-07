@@ -27,7 +27,7 @@ import (
 )
 
 func makeIntField(key string, val int) Field {
-	return Field{fieldType: intType, ival: int64(val), key: key}
+	return Field{Type: IntType, Integer: int64(val), Key: key}
 }
 
 func TestObserverWith(t *testing.T) {

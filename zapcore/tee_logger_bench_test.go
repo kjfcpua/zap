@@ -48,7 +48,7 @@ func BenchmarkTeeCheck(b *testing.B) {
 				tt := cases[i]
 				entry := Entry{Level: tt.lvl, Message: tt.msg}
 				if cm := fac.Check(entry, nil); cm != nil {
-					cm.Write(Field{key: "i", ival: int64(i), fieldType: intType})
+					cm.Write(Field{Key: "i", Integer: int64(i), Type: IntType})
 				}
 				i = (i + 1) % len(cases)
 			}

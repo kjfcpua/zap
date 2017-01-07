@@ -29,14 +29,14 @@ import (
 
 func testJSONConfig() JSONConfig {
 	msgF := func(msg string) Field {
-		return Field{fieldType: stringType, str: msg, key: "msg"}
+		return Field{Type: StringType, String: msg, Key: "msg"}
 	}
 	timeF := func(t time.Time) Field {
 		millis := t.UnixNano() / int64(time.Millisecond)
-		return Field{fieldType: int64Type, ival: millis, key: "ts"}
+		return Field{Type: Int64Type, Integer: millis, Key: "ts"}
 	}
 	levelF := func(l Level) Field {
-		return Field{fieldType: stringType, str: l.String(), key: "level"}
+		return Field{Type: StringType, String: l.String(), Key: "level"}
 	}
 	return JSONConfig{
 		MessageFormatter: msgF,
