@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type user struct {
@@ -48,7 +49,7 @@ var _jane = &user{
 }
 
 func withBenchedLogger(b *testing.B, f func(zap.Logger)) {
-	logger := zap.New(zap.WriterFacility(zap.NewJSONEncoder(), zap.Discard, zap.DebugLevel))
+	logger := zap.New(zap.WriterFacility(zapcore.NewJSONEncoder(defaultJSONConfig()), zap.Discard, zap.DebugLevel))
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {

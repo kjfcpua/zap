@@ -34,18 +34,12 @@ const (
 	UnknownType FieldType = iota
 	// BoolType indicates that the field carries a bool.
 	BoolType
-	// FloatType indicates that the field carries a float64.
-	FloatType
-	// IntType indicates that the field carries an int.
-	IntType
+	// Float64Type indicates that the field carries a float64.
+	Float64Type
 	// Int64Type indicates that the field carries an int64.
 	Int64Type
-	// UintType indicates that the field carries a uint.
-	UintType
 	// Uint64Type indicates that the field carries a uint64.
 	Uint64Type
-	// UintptrType indicates that the field carries a uintptr.
-	UintptrType
 	// StringType indicates that the field carries a string.
 	StringType
 	// ObjectMarshalerType indicates that the field carries a LogObjectMarshaler.
@@ -80,18 +74,12 @@ func (f Field) AddTo(enc ObjectEncoder) {
 	switch f.Type {
 	case BoolType:
 		enc.AddBool(f.Key, f.Integer == 1)
-	case FloatType:
+	case Float64Type:
 		enc.AddFloat64(f.Key, math.Float64frombits(uint64(f.Integer)))
-	case IntType:
-		enc.AddInt(f.Key, int(f.Integer))
 	case Int64Type:
 		enc.AddInt64(f.Key, f.Integer)
-	case UintType:
-		enc.AddUint(f.Key, uint(f.Integer))
 	case Uint64Type:
 		enc.AddUint64(f.Key, uint64(f.Integer))
-	case UintptrType:
-		enc.AddUintptr(f.Key, uintptr(f.Integer))
 	case StringType:
 		enc.AddString(f.Key, f.String)
 	case StringerType:
@@ -111,6 +99,15 @@ func (f Field) AddTo(enc ObjectEncoder) {
 	if err != nil {
 		enc.AddString(fmt.Sprintf("%sError", f.Key), err.Error())
 	}
+}
+
+// Fields wraps a slice of Fields to implement LogObjectMarshaler.
+type Fields []Field
+
+// MarshalLogObject implements LogObjectMarshaler.
+func (fs Fields) MarshalLogObject(enc ObjectEncoder) error {
+	addFields(enc, []Field(fs))
+	return nil
 }
 
 func addFields(enc ObjectEncoder, fields []Field) {

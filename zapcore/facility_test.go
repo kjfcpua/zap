@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func makeIntField(key string, val int) Field {
-	return Field{Type: IntType, Integer: int64(val), Key: key}
+func makeInt64Field(key string, val int) Field {
+	return Field{Type: Int64Type, Integer: int64(val), Key: key}
 }
 
 func TestObserverWith(t *testing.T) {
@@ -36,16 +36,16 @@ func TestObserverWith(t *testing.T) {
 	// need to pad out enough initial fields so that the underlying slice cap()
 	// gets ahead of its len() so that the sf3/4 With append's could choose
 	// not to copy (if the implementation doesn't force them)
-	sf1 = sf1.With([]Field{makeIntField("a", 1), makeIntField("b", 2)})
+	sf1 = sf1.With([]Field{makeInt64Field("a", 1), makeInt64Field("b", 2)})
 
-	sf2 := sf1.With([]Field{makeIntField("c", 3)})
-	sf3 := sf2.With([]Field{makeIntField("d", 4)})
-	sf4 := sf2.With([]Field{makeIntField("e", 5)})
+	sf2 := sf1.With([]Field{makeInt64Field("c", 3)})
+	sf3 := sf2.With([]Field{makeInt64Field("d", 4)})
+	sf4 := sf2.With([]Field{makeInt64Field("e", 5)})
 	ent := Entry{Level: InfoLevel, Message: "hello"}
 
 	for i, f := range []Facility{sf2, sf3, sf4} {
 		if ce := f.Check(ent, nil); ce != nil {
-			ce.Write(makeIntField("i", i))
+			ce.Write(makeInt64Field("i", i))
 		}
 	}
 
@@ -53,30 +53,30 @@ func TestObserverWith(t *testing.T) {
 		{
 			Entry: ent,
 			Context: []Field{
-				makeIntField("a", 1),
-				makeIntField("b", 2),
-				makeIntField("c", 3),
-				makeIntField("i", 0),
+				makeInt64Field("a", 1),
+				makeInt64Field("b", 2),
+				makeInt64Field("c", 3),
+				makeInt64Field("i", 0),
 			},
 		},
 		{
 			Entry: ent,
 			Context: []Field{
-				makeIntField("a", 1),
-				makeIntField("b", 2),
-				makeIntField("c", 3),
-				makeIntField("d", 4),
-				makeIntField("i", 1),
+				makeInt64Field("a", 1),
+				makeInt64Field("b", 2),
+				makeInt64Field("c", 3),
+				makeInt64Field("d", 4),
+				makeInt64Field("i", 1),
 			},
 		},
 		{
 			Entry: ent,
 			Context: []Field{
-				makeIntField("a", 1),
-				makeIntField("b", 2),
-				makeIntField("c", 3),
-				makeIntField("e", 5),
-				makeIntField("i", 2),
+				makeInt64Field("a", 1),
+				makeInt64Field("b", 2),
+				makeInt64Field("c", 3),
+				makeInt64Field("e", 5),
+				makeInt64Field("i", 2),
 			},
 		},
 	}, getLogs(), "expected no field sharing between With siblings")

@@ -18,51 +18,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package zwrap
+package zapcore
 
-import "go.uber.org/zap"
-
-// KeyValueMap implements zap.KeyValue backed by a map.
-type KeyValueMap map[string]interface{}
+// MapObjectEncoder is an ObjectEncoder backed by a simple
+// map[string]interface{}. It's not fast enough for production use, but it's
+// helpful in tests.
+type MapObjectEncoder map[string]interface{}
 
 // AddBool adds the value under the specified key to the map.
-func (m KeyValueMap) AddBool(k string, v bool) { m[k] = v }
+func (m MapObjectEncoder) AddBool(k string, v bool) { m[k] = v }
 
 // AddFloat64 adds the value under the specified key to the map.
-func (m KeyValueMap) AddFloat64(k string, v float64) { m[k] = v }
+func (m MapObjectEncoder) AddFloat64(k string, v float64) { m[k] = v }
 
 // AddInt adds the value under the specified key to the map.
-func (m KeyValueMap) AddInt(k string, v int) { m[k] = v }
+func (m MapObjectEncoder) AddInt(k string, v int) { m[k] = v }
 
 // AddInt64 adds the value under the specified key to the map.
-func (m KeyValueMap) AddInt64(k string, v int64) { m[k] = v }
+func (m MapObjectEncoder) AddInt64(k string, v int64) { m[k] = v }
 
 // AddUint adds the value under the specified key to the map.
-func (m KeyValueMap) AddUint(k string, v uint) { m[k] = v }
+func (m MapObjectEncoder) AddUint(k string, v uint) { m[k] = v }
 
 // AddUint64 adds the value under the specified key to the map.
-func (m KeyValueMap) AddUint64(k string, v uint64) { m[k] = v }
+func (m MapObjectEncoder) AddUint64(k string, v uint64) { m[k] = v }
 
 // AddUintptr adds the value under the specified key to the map.
-func (m KeyValueMap) AddUintptr(k string, v uintptr) { m[k] = v }
+func (m MapObjectEncoder) AddUintptr(k string, v uintptr) { m[k] = v }
 
-// AddObject adds the value under the specified key to the map.
-func (m KeyValueMap) AddObject(k string, v interface{}) error {
+// AddReflected adds the value under the specified key to the map.
+func (m MapObjectEncoder) AddReflected(k string, v interface{}) error {
 	m[k] = v
 	return nil
 }
 
 // AddString adds the value under the specified key to the map.
-func (m KeyValueMap) AddString(k string, v string) { m[k] = v }
+func (m MapObjectEncoder) AddString(k string, v string) { m[k] = v }
 
-// AddMarshaler adds the value under the specified key to the map.
-func (m KeyValueMap) AddMarshaler(k string, v zap.LogMarshaler) error {
-	return m.Nest(k, v.MarshalLog)
-}
-
-// Nest builds a object and adds the value under the specified key to the map.
-func (m KeyValueMap) Nest(k string, f func(zap.KeyValue) error) error {
-	newMap := make(KeyValueMap)
+// AddObject adds the value under the specified key to the map.
+func (m MapObjectEncoder) AddObject(k string, v LogObjectMarshaler) error {
+	newMap := make(MapObjectEncoder)
 	m[k] = newMap
-	return f(newMap)
+	return v.MarshalLogObject(newMap)
 }

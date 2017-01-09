@@ -31,7 +31,7 @@ import (
 	"testing"
 
 	. "go.uber.org/zap"
-	"go.uber.org/zap/spy"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,7 +39,7 @@ import (
 
 func newHandler() (AtomicLevel, Logger) {
 	lvl := DynamicLevel()
-	fac, _ := spy.New(lvl)
+	fac, _ := zapcore.NewObserver(lvl)
 	logger := New(fac)
 	return lvl, logger
 }

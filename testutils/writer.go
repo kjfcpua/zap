@@ -18,54 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package zap
+package testutils
 
-// Tee creates a Facility that duplicates log entries into two or more
-// facilities; if you call it with less than two, you get back the one facility
-// you passed (or nil in the pathological case).
-func Tee(facs ...Facility) Facility {
-	switch len(facs) {
-	case 0:
-		return nil
-	case 1:
-		return facs[0]
-	default:
-		return multiFacility(facs)
-	}
+import (
+	"bytes"
+	"strings"
+)
+
+// Buffer is an implementation of zapcore.WriteSyncer that's convenient in tests.
+type Buffer struct {
+	bytes.Buffer
 }
 
-type multiFacility []Facility
-
-func (mf multiFacility) With(fields []Field) Facility {
-	clone := make(multiFacility, len(mf))
-	for i := range mf {
-		clone[i] = mf[i].With(fields)
-	}
-	return clone
+// Sync implements zapcore.WriteSyncer.
+func (b *Buffer) Sync() error {
+	return nil
 }
 
-func (mf multiFacility) Enabled(lvl Level) bool {
-	for i := range mf {
-		if mf[i].Enabled(lvl) {
-			return true
-		}
-	}
-	return false
+// Lines returns the current buffer contents, split on newlines.
+func (b *Buffer) Lines() []string {
+	output := strings.Split(b.String(), "\n")
+	return output[:len(output)-1]
 }
 
-func (mf multiFacility) Check(ent Entry, ce *CheckedEntry) *CheckedEntry {
-	for i := range mf {
-		ce = mf[i].Check(ent, ce)
-	}
-	return ce
-}
-
-func (mf multiFacility) Write(ent Entry, fields []Field) error {
-	var errs multiError
-	for i := range mf {
-		if err := mf[i].Write(ent, fields); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errs.asError()
+// Stripped returns the current buffer contents with the last trailing newline
+// stripped.
+func (b *Buffer) Stripped() string {
+	return strings.TrimRight(b.String(), "\n")
 }

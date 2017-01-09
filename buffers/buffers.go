@@ -18,43 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package zap_test
+// Package buffers provides strongly-typed functions to interact with a shared
+// pool of byte slices.
+//
+// It's used heavily inside zap, but callers may also take advantage of it;
+// it's particularly useful when implementing json.Marshaler, text.Marshaler,
+// and similar interfaces.
+package buffers
 
-import (
-	"testing"
+import "sync"
 
-	"go.uber.org/zap"
-)
+const _size = 1024 // create 1 KiB buffers
 
-func withBenchedTee(b *testing.B, f func(zap.Logger)) {
-	logger := zap.New(zap.Tee(
-		zap.WriterFacility(zap.NewJSONEncoder(), zap.Discard, zap.DebugLevel),
-		zap.WriterFacility(zap.NewJSONEncoder(), zap.Discard, zap.InfoLevel),
-	))
-	b.ResetTimer()
-	f(logger)
+var _pool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 0, _size)
+	},
 }
 
-func BenchmarkTee_Check(b *testing.B) {
-	cases := []struct {
-		lvl zap.Level
-		msg string
-	}{
-		{zap.DebugLevel, "foo"},
-		{zap.InfoLevel, "bar"},
-		{zap.WarnLevel, "baz"},
-		{zap.ErrorLevel, "babble"},
-	}
-	withBenchedTee(b, func(logger zap.Logger) {
-		b.RunParallel(func(pb *testing.PB) {
-			i := 0
-			for pb.Next() {
-				tt := cases[i]
-				if cm := logger.Check(tt.lvl, tt.msg); cm != nil {
-					cm.Write(zap.Int("i", i))
-				}
-				i = (i + 1) % len(cases)
-			}
-		})
-	})
+// Get retrieves a slice from the pool, creating one if necessary.
+// Newly-created slices have a 1 KiB capacity.
+func Get() []byte {
+	buf := _pool.Get().([]byte)
+	return buf[:0]
+}
+
+// Put returns a slice to the pool.
+func Put(buf []byte) {
+	_pool.Put(buf)
 }

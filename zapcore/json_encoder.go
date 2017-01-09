@@ -43,6 +43,7 @@ var (
 	// errNilSink signals that Encoder.WriteEntry was called with a nil WriteSyncer.
 	errNilSink = errors.New("can't write encoded message a nil WriteSyncer")
 
+	// TODO: use the new buffers package instead of pooling encoders.
 	jsonPool = sync.Pool{New: func() interface{} {
 		return &jsonEncoder{
 			// Pre-allocate a reasonably-sized buffer for each encoder.

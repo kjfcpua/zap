@@ -18,73 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package zwrap
+package zapcore
 
 import (
-	"errors"
 	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
-type unloggable struct{}
-
-func (unloggable) MarshalLog(kv zap.KeyValue) error {
-	return errors.New("not loggable")
-}
-
-type loggable struct{}
-
-func (l loggable) MarshalLog(kv zap.KeyValue) error {
-	kv.AddString("loggable", "yes")
-	return nil
-}
-
-func TestKeyValueMapAdd(t *testing.T) {
+func TestMapEncoderAdd(t *testing.T) {
 	arbitraryObj := map[string]interface{}{
 		"foo": "bar",
 		"baz": 5,
 	}
 
-	kv := KeyValueMap{}
-	kv.AddBool("b", true)
-	kv.AddFloat64("f64", 1.56)
-	kv.AddInt("int", 5)
-	kv.AddInt64("i64", math.MaxInt64)
-	kv.AddUintptr("uintptr", uintptr(0xdeadbeef))
-	kv.AddString("s", "string")
+	enc := make(MapObjectEncoder)
+	enc.AddBool("b", true)
+	enc.AddFloat64("f64", 1.56)
+	enc.AddInt("int", 5)
+	enc.AddInt64("i64", math.MaxInt64)
+	enc.AddUintptr("uintptr", uintptr(0xdeadbeef))
+	enc.AddString("s", "string")
 
-	assert.NoError(t, kv.AddObject("obj", arbitraryObj), "AddObject failed")
-	assert.NoError(t, kv.AddMarshaler("m1", loggable{}), "AddMarshaler failed")
-	assert.NoError(t, kv.Nest("m2", loggable{}.MarshalLog), "Nest failed")
+	assert.NoError(t, enc.AddReflected("reflect", arbitraryObj), "Expected AddReflected to succeed.")
+	assert.NoError(t, enc.AddObject("object", loggable{true}), "Expected AddObject to succeed.")
 
-	want := KeyValueMap{
+	want := MapObjectEncoder{
 		"b":       true,
 		"f64":     1.56,
 		"int":     5,
 		"i64":     int64(math.MaxInt64),
 		"uintptr": uintptr(0xdeadbeef),
 		"s":       "string",
-		"obj":     arbitraryObj,
-		"m1": KeyValueMap{
-			"loggable": "yes",
-		},
-		"m2": KeyValueMap{
+		"reflect": arbitraryObj,
+		"object": MapObjectEncoder{
 			"loggable": "yes",
 		},
 	}
-	assert.Equal(t, want, kv, "Unexpected result")
+	assert.Equal(t, want, enc, "Encoder's final state is unexpected.")
 }
 
 func TestKeyValueMapAddFails(t *testing.T) {
-	kv := KeyValueMap{}
-
-	assert.Error(t, kv.AddMarshaler("m1", unloggable{}), "AddMarshaler should fail")
-	assert.Error(t, kv.Nest("m2", unloggable{}.MarshalLog), "Nest should fail")
-	assert.Equal(t, KeyValueMap{
-		"m1": KeyValueMap{},
-		"m2": KeyValueMap{},
-	}, kv, "Empty values on errors")
+	enc := make(MapObjectEncoder)
+	assert.Error(t, enc.AddObject("object", loggable{false}), "Expected AddObject to fail.")
+	assert.Equal(t, MapObjectEncoder{"object": MapObjectEncoder{}}, enc, "Expected encoder to use empty values on errors.")
 }

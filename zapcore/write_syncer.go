@@ -65,7 +65,9 @@ type lockedWriteSyncer struct {
 	ws WriteSyncer
 }
 
-func newLockedWriteSyncer(ws WriteSyncer) WriteSyncer {
+// Lock wraps a WriteSyncer in a mutex to make it safe for concurrent use. In
+// particular, *os.Files must be locked before use.
+func Lock(ws WriteSyncer) WriteSyncer {
 	return &lockedWriteSyncer{ws: ws}
 }
 
@@ -99,8 +101,10 @@ func (f flusherWrapper) Sync() error {
 	return f.Flush()
 }
 
+type multiWriteSyncer []WriteSyncer
+
 // MultiWriteSyncer creates a WriteSyncer that duplicates its writes
-// and sync calls, similarly to to io.MultiWriter.
+// and sync calls, much like io.MultiWriter.
 func MultiWriteSyncer(ws ...WriteSyncer) WriteSyncer {
 	// Copy to protect against https://github.com/golang/go/issues/7809
 	return multiWriteSyncer(append([]WriteSyncer(nil), ws...))
@@ -158,5 +162,3 @@ func (m multiError) Error() string {
 	}
 	return sb.String()
 }
-
-type multiWriteSyncer []WriteSyncer

@@ -20,7 +20,10 @@
 
 package zapcore
 
-import "sync"
+import (
+	"sync"
+	"time"
+)
 
 // Facility is a destination for log entries. It can have pervasive fields
 // added with With().
@@ -38,7 +41,7 @@ func WriterFacility(enc Encoder, ws WriteSyncer, enab LevelEnabler) Facility {
 	return ioFacility{
 		LevelEnabler: enab,
 		enc:          enc,
-		out:          newLockedWriteSyncer(ws),
+		out:          Lock(ws),
 	}
 }
 
@@ -76,6 +79,13 @@ func (iof ioFacility) Write(ent Entry, fields []Field) error {
 type ObservedLog struct {
 	Entry
 	Context []Field
+}
+
+// Untimed returns a copy of the observed log with the entry time set to the
+// zero value.
+func (o ObservedLog) Untimed() ObservedLog {
+	o.Entry.Time = time.Time{}
+	return o
 }
 
 type observerSink struct {

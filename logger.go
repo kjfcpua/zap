@@ -26,6 +26,8 @@ import (
 	"os"
 	"runtime"
 	"time"
+
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -34,18 +36,34 @@ var (
 	errCaller          = errors.New("failed to get caller")
 )
 
+func defaultEncoderConfig() zapcore.JSONConfig {
+	msgF := func(msg string) zapcore.Field {
+		return zapcore.Field{Type: zapcore.StringType, String: msg, Key: "msg"}
+	}
+	timeF := func(t time.Time) zapcore.Field {
+		millis := t.UnixNano() / int64(time.Millisecond)
+		return zapcore.Field{Type: zapcore.Int64Type, Integer: millis, Key: "ts"}
+	}
+	levelF := func(l zapcore.Level) zapcore.Field {
+		return zapcore.Field{Type: zapcore.StringType, String: l.String(), Key: "level"}
+	}
+	return zapcore.JSONConfig{
+		MessageFormatter: msgF,
+		TimeFormatter:    timeF,
+		LevelFormatter:   levelF,
+	}
+}
+
 // A Logger enables leveled, structured logging. All methods are safe for
 // concurrent use.
 type Logger interface {
 	// Create a child logger, and optionally add some context to that logger.
-	With(...Field) Logger
+	With(...zapcore.Field) Logger
 
 	// Check returns a CheckedEntry if logging a message at the specified level
 	// is enabled. It's a completely optional optimization; in high-performance
 	// applications, Check can help avoid allocating a slice to hold fields.
-	//
-	// See CheckedEntry for an example.
-	Check(Level, string) *CheckedEntry
+	Check(zapcore.Level, string) *zapcore.CheckedEntry
 
 	// Log a message at the given level. Messages include any context that's
 	// accumulated on the logger, as well as any fields added at the log site.
@@ -54,27 +72,26 @@ type Logger interface {
 	// process, but calling Log(PanicLevel, ...) or Log(FatalLevel, ...) should
 	// not. It may not be possible for compatibility wrappers to comply with
 	// this last part (e.g. the bark wrapper).
-	Debug(string, ...Field)
-	Info(string, ...Field)
-	Warn(string, ...Field)
-	Error(string, ...Field)
-	DPanic(string, ...Field)
-	Panic(string, ...Field)
-	Fatal(string, ...Field)
+	Debug(string, ...zapcore.Field)
+	Info(string, ...zapcore.Field)
+	Warn(string, ...zapcore.Field)
+	Error(string, ...zapcore.Field)
+	DPanic(string, ...zapcore.Field)
+	Panic(string, ...zapcore.Field)
+	Fatal(string, ...zapcore.Field)
 
 	// Facility returns the destination that log entries are written to.
-	Facility() Facility
+	Facility() zapcore.Facility
 }
 
 type logger struct {
-	fac Facility
+	fac zapcore.Facility
 
 	development bool
-	errorOutput WriteSyncer
+	errorOutput zapcore.WriteSyncer
 
-	// TODO: consider using a LevelEnabler instead
 	addCaller bool
-	addStack  Level
+	addStack  zapcore.LevelEnabler
 
 	callerSkip int
 }
@@ -82,14 +99,18 @@ type logger struct {
 // New returns a new logger with sensible defaults: logging at InfoLevel,
 // development mode off, errors written to standard error, and logs JSON
 // encoded to standard output.
-func New(fac Facility, options ...Option) Logger {
+func New(fac zapcore.Facility, options ...Option) Logger {
 	if fac == nil {
-		fac = WriterFacility(NewJSONEncoder(), os.Stdout, InfoLevel)
+		fac = zapcore.WriterFacility(
+			zapcore.NewJSONEncoder(defaultEncoderConfig()),
+			os.Stdout,
+			InfoLevel,
+		)
 	}
 	log := &logger{
 		fac:         fac,
-		errorOutput: newLockedWriteSyncer(os.Stderr),
-		addStack:    maxLevel, // TODO: better an `always false` level enabler
+		errorOutput: zapcore.Lock(os.Stderr),
+		addStack:    LevelEnablerFunc(func(_ zapcore.Level) bool { return false }),
 		callerSkip:  _defaultCallerSkip,
 	}
 	for _, opt := range options {
@@ -98,7 +119,7 @@ func New(fac Facility, options ...Option) Logger {
 	return log
 }
 
-func (log *logger) With(fields ...Field) Logger {
+func (log *logger) With(fields ...zapcore.Field) Logger {
 	if len(fields) == 0 {
 		return log
 	}
@@ -112,10 +133,10 @@ func (log *logger) With(fields ...Field) Logger {
 	}
 }
 
-func (log *logger) Check(lvl Level, msg string) *CheckedEntry {
+func (log *logger) Check(lvl zapcore.Level, msg string) *zapcore.CheckedEntry {
 	// Create basic checked entry thru the facility; this will be non-nil if
 	// the log message will actually be written somewhere.
-	ent := Entry{
+	ent := zapcore.Entry{
 		Time:    time.Now().UTC(),
 		Level:   lvl,
 		Message: msg,
@@ -126,13 +147,13 @@ func (log *logger) Check(lvl Level, msg string) *CheckedEntry {
 	// If terminal behavior is required, setup so that it happens after the
 	// checked entry is written and create a checked entry if it's still nil.
 	switch ent.Level {
-	case PanicLevel:
-		ce = ce.Should(ent, WriteThenPanic)
-	case FatalLevel:
-		ce = ce.Should(ent, WriteThenFatal)
-	case DPanicLevel:
+	case zapcore.PanicLevel:
+		ce = ce.Should(ent, zapcore.WriteThenPanic)
+	case zapcore.FatalLevel:
+		ce = ce.Should(ent, zapcore.WriteThenFatal)
+	case zapcore.DPanicLevel:
 		if log.development {
-			ce = ce.Should(ent, WriteThenPanic)
+			ce = ce.Should(ent, zapcore.WriteThenPanic)
 		}
 	}
 
@@ -144,29 +165,29 @@ func (log *logger) Check(lvl Level, msg string) *CheckedEntry {
 	}
 
 	if log.addCaller {
-		ce.Entry.Caller = MakeEntryCaller(runtime.Caller(log.callerSkip))
+		ce.Entry.Caller = zapcore.MakeEntryCaller(runtime.Caller(log.callerSkip))
 		if !ce.Entry.Caller.Defined {
 			log.InternalError("addCaller", errCaller)
 		}
 	}
 
-	if ce.Entry.Level >= log.addStack {
-		ce.Entry.Stack = Stack().str
+	if log.addStack.Enabled(ce.Entry.Level) {
+		ce.Entry.Stack = Stack().String
 		// TODO: maybe just inline Stack around takeStacktrace
 	}
 
 	return ce
 }
 
-func (log *logger) Debug(msg string, fields ...Field)  { log.Log(DebugLevel, msg, fields...) }
-func (log *logger) Info(msg string, fields ...Field)   { log.Log(InfoLevel, msg, fields...) }
-func (log *logger) Warn(msg string, fields ...Field)   { log.Log(WarnLevel, msg, fields...) }
-func (log *logger) Error(msg string, fields ...Field)  { log.Log(ErrorLevel, msg, fields...) }
-func (log *logger) DPanic(msg string, fields ...Field) { log.Log(DPanicLevel, msg, fields...) }
-func (log *logger) Panic(msg string, fields ...Field)  { log.Log(PanicLevel, msg, fields...) }
-func (log *logger) Fatal(msg string, fields ...Field)  { log.Log(FatalLevel, msg, fields...) }
+func (log *logger) Debug(msg string, fields ...zapcore.Field)  { log.Log(DebugLevel, msg, fields...) }
+func (log *logger) Info(msg string, fields ...zapcore.Field)   { log.Log(InfoLevel, msg, fields...) }
+func (log *logger) Warn(msg string, fields ...zapcore.Field)   { log.Log(WarnLevel, msg, fields...) }
+func (log *logger) Error(msg string, fields ...zapcore.Field)  { log.Log(ErrorLevel, msg, fields...) }
+func (log *logger) DPanic(msg string, fields ...zapcore.Field) { log.Log(DPanicLevel, msg, fields...) }
+func (log *logger) Panic(msg string, fields ...zapcore.Field)  { log.Log(PanicLevel, msg, fields...) }
+func (log *logger) Fatal(msg string, fields ...zapcore.Field)  { log.Log(FatalLevel, msg, fields...) }
 
-func (log *logger) Log(lvl Level, msg string, fields ...Field) {
+func (log *logger) Log(lvl zapcore.Level, msg string, fields ...zapcore.Field) {
 	if ce := log.Check(lvl, msg); ce != nil {
 		if err := ce.Write(fields...); err != nil {
 			log.InternalError("write", err)
@@ -183,6 +204,6 @@ func (log *logger) InternalError(cause string, err error) {
 }
 
 // Facility returns the destination that logs entries are written to.
-func (log *logger) Facility() Facility {
+func (log *logger) Facility() zapcore.Facility {
 	return log.fac
 }

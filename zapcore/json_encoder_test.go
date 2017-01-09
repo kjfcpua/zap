@@ -21,19 +21,18 @@
 package zapcore
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"math"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"go.uber.org/zap/spywrite"
+	"go.uber.org/zap/testutils"
 )
 
 var epoch = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
@@ -50,23 +49,6 @@ func withJSONEncoder(f func(*jsonEncoder)) {
 	enc := newJSONEncoder(testJSONConfig())
 	f(enc)
 	enc.free()
-}
-
-type testBuffer struct {
-	bytes.Buffer
-}
-
-func (b *testBuffer) Sync() error {
-	return nil
-}
-
-func (b *testBuffer) Lines() []string {
-	output := strings.Split(b.String(), "\n")
-	return output[:len(output)-1]
-}
-
-func (b *testBuffer) Stripped() string {
-	return strings.TrimRight(b.String(), "\n")
 }
 
 type noJSON struct{}
@@ -168,7 +150,7 @@ func TestJSONWriteEntry(t *testing.T) {
 		}, nil), "Expected an error writing to a nil sink.")
 
 		// Messages should be escaped.
-		sink := &testBuffer{}
+		sink := &testutils.Buffer{}
 		enc.AddString("foo", "bar")
 		err := enc.WriteEntry(sink, Entry{
 			Level:   InfoLevel,
